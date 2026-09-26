@@ -26,6 +26,7 @@ export default function SpeedInfoOverlay({ gps, speedLimitKmh, isOverLimit }: Pr
         {speedLimitKmh !== null && (
           <Text style={styles.subText}>Tốc độ cho phép: {speedLimitKmh} km/h</Text>
         )}
+        {gps?.isMock && <Text style={styles.mockTag}>● DỮ LIỆU GIẢ LẬP (TEST)</Text>}
       </View>
 
       {isOverLimit && (
@@ -63,6 +64,12 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 13,
     marginTop: 2,
+  },
+  mockTag: {
+    color: '#f7a04f',
+    fontSize: 11,
+    fontWeight: 'bold',
+    marginTop: 6,
   },
   warningBanner: {
     position: 'absolute',

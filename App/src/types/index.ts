@@ -7,6 +7,8 @@ export interface GpsData {
   heading: number | null;
   accuracy: number;
   timestamp: number;
+  /** true nếu đây là dữ liệu GPS giả lập (dùng khi test trên emulator, không phải vị trí thật) */
+  isMock?: boolean;
 }
 
 export interface SpeedLimitResult {

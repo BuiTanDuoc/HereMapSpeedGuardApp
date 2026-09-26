@@ -32,3 +32,26 @@ export const LOCATION_OPTIONS = {
   interval: 1000,
   fastestInterval: 500,
 };
+
+/**
+ * Cấu hình giả lập GPS — dùng để test trên emulator/thiết bị không phát tín hiệu
+ * tốc độ, hướng di chuyển thật. Khi bật, nếu không nhận được bất kỳ vị trí GPS thật
+ * nào trong MOCK_LOCATION_TIMEOUT_MS, hoặc GPS báo lỗi, app tự chuyển sang dữ liệu
+ * giả lập (tốc độ dao động 0-80km/h) để vẫn test được luồng cảnh báo vượt tốc độ.
+ *
+ * ⚠️ Nhớ đặt ENABLE_MOCK_LOCATION_FALLBACK = false trước khi build bản thật cho
+ * người dùng, tránh app "giả vờ" có GPS khi máy thật không lấy được vị trí.
+ */
+export const ENABLE_MOCK_LOCATION_FALLBACK = true;
+
+/** Thời gian (ms) chờ GPS thật trước khi chuyển sang giả lập. */
+export const MOCK_LOCATION_TIMEOUT_MS = 6000;
+
+/** Toạ độ gốc để giả lập vị trí di chuyển xung quanh (mặc định: trung tâm TP.HCM). */
+export const MOCK_LOCATION_ORIGIN = {
+  latitude: 10.7769,
+  longitude: 106.7009,
+};
+
+/** Khoảng thời gian (ms) giữa mỗi lần phát ra 1 điểm GPS giả lập. */
+export const MOCK_LOCATION_INTERVAL_MS = 1000;
