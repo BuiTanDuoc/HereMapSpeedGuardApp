@@ -46,7 +46,26 @@ export async function fetchSpeedLimit(
 
     const speedLimitKmh = extractSpeedLimitKmh(response.data);
     return { speedLimitKmh, raw: response.data };
-  } catch (error) {
+  } catch (error: any) {
+    const status = error?.response?.status;
+
+    if (status === 429) {
+      // Vượt rate limit của gói/API key HERE. Đọc header Retry-After nếu HERE có
+      // trả về (giây), nếu không thì dùng mặc định RATE_LIMIT_COOLDOWN_MS.
+      const retryAfterHeader = error?.response?.headers?.['retry-after'];
+      const retryAfterMs = retryAfterHeader
+        ? Number(retryAfterHeader) * 1000
+        : null;
+      console.warn(
+        '[SpeedLimitService] HERE API trả 429 (quá số lượt gọi cho phép) — sẽ tạm dừng gọi API.',
+      );
+      return {
+        speedLimitKmh: null,
+        rateLimited: true,
+        retryAfterMs: Number.isFinite(retryAfterMs) ? retryAfterMs! : null,
+      };
+    }
+
     console.warn('[SpeedLimitService] Lỗi khi gọi HERE Map Attributes API:', error);
     return { speedLimitKmh: null };
   }

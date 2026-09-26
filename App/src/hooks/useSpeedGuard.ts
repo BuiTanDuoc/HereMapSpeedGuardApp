@@ -6,6 +6,7 @@ import {
   SPEED_CHECK_MIN_INTERVAL_MS,
   ENABLE_MOCK_LOCATION_FALLBACK,
   MOCK_LOCATION_TIMEOUT_MS,
+  RATE_LIMIT_DEFAULT_COOLDOWN_MS,
 } from '../config/AppConfig';
 import { ensureLocationPermission } from '../services/PermissionService';
 import { startWatchingLocation, stopWatchingLocation } from '../services/LocationService';
@@ -36,6 +37,8 @@ export function useSpeedGuard(): SpeedGuardState {
   const mockTimerIdRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const receivedRealGpsRef = useRef(false);
+  // Nếu HERE trả 429, không gọi lại API cho tới mốc thời gian này
+  const cooldownUntilRef = useRef<number>(0);
 
   const maybeCheckSpeedLimit = useCallback(async (data: GpsData) => {
     const { speedKmh, latitude, longitude } = data;
@@ -47,6 +50,12 @@ export function useSpeedGuard(): SpeedGuardState {
     }
 
     const now = Date.now();
+
+    if (now < cooldownUntilRef.current) {
+      // Đang trong thời gian "nghỉ" do bị HERE trả 429 trước đó — bỏ qua, không gọi tiếp.
+      return;
+    }
+
     const last = lastCheckedSpeedRef.current;
     const speedChanged = last === null || Math.abs(speedKmh - last) >= SPEED_CHECK_DELTA_KMH;
     const enoughTimePassed = now - lastCheckedAtRef.current >= SPEED_CHECK_MIN_INTERVAL_MS;
@@ -61,6 +70,12 @@ export function useSpeedGuard(): SpeedGuardState {
 
     const result = await fetchSpeedLimit(latitude, longitude);
     inFlightRef.current = false;
+
+    if (result.rateLimited) {
+      const cooldownMs = result.retryAfterMs ?? RATE_LIMIT_DEFAULT_COOLDOWN_MS;
+      cooldownUntilRef.current = Date.now() + cooldownMs;
+      return;
+    }
 
     if (result.speedLimitKmh !== null) {
       setSpeedLimitKmh(result.speedLimitKmh);

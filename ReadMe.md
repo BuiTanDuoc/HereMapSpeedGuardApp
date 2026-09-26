@@ -100,4 +100,3 @@ npm run ios
  *** Error: A problem occurred evaluating project ':react-native-tts'. > Could not find method jcenter() for arguments [] on repository container of type org.gradle.api.internal.artifacts.dsl.DefaultRepositoryHandler.
 - Mở file bị lỗi: node_modules/react-native-tts/android/build.gradle trong project
 - Thay jcenter() bằng mavenCentral() (Tìm tất cả dòng có chữ jcenter() đổi thành mavenCentral(). Nếu một block đã có sẵn mavenCentral() rồi thì chỉ cần xóa dòng jcenter() thừa.
-

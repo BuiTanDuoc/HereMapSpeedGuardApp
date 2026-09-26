@@ -21,7 +21,13 @@ export const SPEED_CHECK_DELTA_KMH = 5;
  * Khoảng thời gian tối thiểu (ms) giữa 2 lần gọi API kiểm tra tốc độ,
  * để tránh vượt rate-limit của HERE khi tốc độ thay đổi nhanh liên tục.
  */
-export const SPEED_CHECK_MIN_INTERVAL_MS = 5000;
+export const SPEED_CHECK_MIN_INTERVAL_MS = 10000;
+
+/**
+ * Nếu HERE trả về lỗi 429 (vượt rate limit) và không có header Retry-After,
+ * tạm dừng gọi API trong khoảng thời gian này (ms) trước khi thử lại.
+ */
+export const RATE_LIMIT_DEFAULT_COOLDOWN_MS = 30000;
 
 /**
  * Cấu hình theo dõi vị trí GPS.

@@ -14,5 +14,9 @@ export interface GpsData {
 export interface SpeedLimitResult {
   /** km/h. null nếu API không trả về được (mất mạng, không có dữ liệu tuyến đường,...) */
   speedLimitKmh: number | null;
+  /** true nếu HERE trả về lỗi 429 (vượt rate limit) cho lần gọi này */
+  rateLimited?: boolean;
+  /** Số ms nên chờ trước khi gọi lại, lấy từ header Retry-After nếu HERE có trả về */
+  retryAfterMs?: number | null;
   raw?: unknown;
 }
