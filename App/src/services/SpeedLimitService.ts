@@ -3,74 +3,76 @@ import { HERE_API_KEY } from '../config/AppConfig';
 import { SpeedLimitResult } from '../types';
 
 /**
- * ⚠️ LƯU Ý QUAN TRỌNG VỀ ENDPOINT:
- * "https://hereapi.com?apiKey=...&attributes=SPEED_LIMITS_FCN(*)" trong yêu cầu gốc
- * chỉ là mô tả khái quát, không phải host thật của HERE (hereapi.com không phải domain
- * public của HERE). Tham số "attributes=SPEED_LIMITS_FCN(*)" thực chất thuộc về
- * HERE Routing API v7 - "Get Link Info" (trả về thuộc tính link đường, gồm tốc độ
- * cho phép), có dạng:
+ * HERE Map Attributes API v8 — endpoint chính thức để tra cứu thuộc tính bản đồ
+ * (bao gồm SPEED_LIMITS_FCn) theo vị trí, thay cho Routing API v7 GetLinkInfo đã
+ * lỗi thời. Docs: https://docs.here.com/map-attributes/docs
  *
- *   GET https://route.ls.hereapi.com/routing/7.2/getlinkinfo.json
- *       ?apiKey=YOUR_HERE_API_KEY
- *       &waypoint=<lat>,<lon>
- *       &attributes=SPEED_LIMITS_FCN(*)
+ *   GET https://smap.hereapi.com/v8/maps/attributes
+ *       ?layers=SPEED_LIMITS_FCN(*)
+ *       &in=proximity:<lat>,<lon>;r=<bán kính mét>
+ *       &apiKey=YOUR_HERE_API_KEY
  *
- * Endpoint này dùng API Key kiểu cũ (apiKey, không phải app_id/app_code) và cần được
- * bật trong gói dịch vụ HERE của bạn (Routing API v7 / Fleet Telematics). Vì mỗi tài
- * khoản HERE có thể được cấp domain/plan khác nhau, hãy XÁC NHẬN LẠI endpoint chính
- * xác trong HERE Developer Portal của bạn rồi cập nhật hằng số SPEED_LIMIT_ENDPOINT
- * bên dưới cho khớp. Toàn bộ phần còn lại của app (debounce, cảnh báo, bản đồ...)
- * không phụ thuộc vào việc đổi endpoint này.
+ * "in=proximity:lat,lon;r=..." tìm các link đường trong bán kính quanh toạ độ hiện
+ * tại (spatial filter). Layer "SPEED_LIMITS_FCN" (N = tất cả functional class) trả
+ * về các cột FROM_REF_SPEED_LIMIT / TO_REF_SPEED_LIMIT (tốc độ theo 2 chiều của
+ * link) — dùng "(*)" để lấy toàn bộ cột thay vì chỉ định từng cột.
+ *
+ * ⚠️ HERE khuyến nghị: nếu cần tốc độ áp dụng cuối cùng cho 1 loại xe cụ thể (đã
+ * gộp cả giới hạn có điều kiện, giới hạn theo giờ, giới hạn xe tải...), nên dùng
+ * layer APPLICABLE_SPEED_LIMIT thay vì SPEED_LIMITS_FCN thô — xem
+ * https://docs.here.com/map-attributes/docs/applicablespeedlimit
  */
-const SPEED_LIMIT_ENDPOINT = 'https://route.ls.hereapi.com/routing/7.2/getlinkinfo.json';
+const MAP_ATTRIBUTES_ENDPOINT = 'https://smap.hereapi.com/v8/maps/attributes';
+
+/** Bán kính (mét) tìm link đường quanh vị trí GPS hiện tại. */
+const SEARCH_RADIUS_METERS = 50;
 
 /**
- * Gọi HERE API để lấy tốc độ tối đa cho phép tại 1 toạ độ.
- * Dùng POST theo đúng yêu cầu; nếu tài khoản HERE của bạn chỉ hỗ trợ GET cho
- * endpoint này, đổi axios.post -> axios.get với { params } tương ứng.
+ * Gọi HERE Map Attributes API v8 để lấy tốc độ tối đa cho phép gần 1 toạ độ.
  */
 export async function fetchSpeedLimit(
   latitude: number,
   longitude: number,
 ): Promise<SpeedLimitResult> {
   try {
-    const response = await axios.post(
-      SPEED_LIMIT_ENDPOINT,
-      {},
-      {
-        params: {
-          apiKey: HERE_API_KEY,
-          waypoint: `${latitude},${longitude}`,
-          attributes: 'SPEED_LIMITS_FCN(*)',
-        },
-        timeout: 8000,
+    const response = await axios.get(MAP_ATTRIBUTES_ENDPOINT, {
+      params: {
+        layers: 'SPEED_LIMITS_FCN(*)',
+        in: `proximity:${latitude},${longitude};r=${SEARCH_RADIUS_METERS}`,
+        apiKey: HERE_API_KEY,
       },
-    );
+      timeout: 8000,
+    });
 
     const speedLimitKmh = extractSpeedLimitKmh(response.data);
     return { speedLimitKmh, raw: response.data };
   } catch (error) {
-    console.warn('[SpeedLimitService] Lỗi khi gọi HERE API:', error);
+    console.warn('[SpeedLimitService] Lỗi khi gọi HERE Map Attributes API:', error);
     return { speedLimitKmh: null };
   }
 }
 
 /**
- * HERE trả speed limit theo m/s trong trường SPEED_LIMITS_FCN của response.
- * Cấu trúc JSON thật có thể khác tuỳ version API — hãy log response.data thật
- * một lần (raw ở trên) rồi chỉnh lại hàm này cho khớp field chính xác.
+ * Response của Map Attributes API v8 có dạng:
+ *   { "Tiles": [ { "Meta": {...}, "Rows": [ { "LINK_ID": ..., "FROM_REF_SPEED_LIMIT": ...,
+ *                  "TO_REF_SPEED_LIMIT": ... }, ... ] } ] }
+ * Đơn vị mặc định của HERE map content là km/h.
+ * ⚠️ Nên log response.data thật (field "raw" ở trên) một lần với tài khoản của bạn để
+ * xác nhận đúng tên cột, vì có thể khác nhau tuỳ vùng bản đồ/map release.
  */
 function extractSpeedLimitKmh(data: any): number | null {
   try {
-    const links = data?.Response?.RouteLinks ?? data?.RouteLinks ?? [];
-    const firstLink = Array.isArray(links) ? links[0] : links;
-    const attributes = firstLink?.Attributes ?? firstLink?.attributes;
-    const speedLimitMs =
-      attributes?.SPEED_LIMITS_FCN?.[0]?.SPEED_LIMIT ??
-      attributes?.SPEED_LIMITS_FCN?.SPEED_LIMIT;
-
-    if (typeof speedLimitMs === 'number') {
-      return Math.round(speedLimitMs * 3.6);
+    const tiles = data?.Tiles ?? [];
+    for (const tile of tiles) {
+      const rows = tile?.Rows ?? [];
+      for (const row of rows) {
+        const rawValue = row?.TO_REF_SPEED_LIMIT ?? row?.FROM_REF_SPEED_LIMIT;
+        const speedLimitKmh =
+          typeof rawValue === 'number' ? rawValue : Number(rawValue);
+        if (Number.isFinite(speedLimitKmh) && speedLimitKmh > 0) {
+          return speedLimitKmh;
+        }
+      }
     }
     return null;
   } catch {
