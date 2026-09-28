@@ -1,97 +1,137 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# HereSpeedGuard
 
-# Getting Started
+Ứng dụng React Native CLI: theo dõi GPS (toạ độ, tốc độ, hướng di chuyển), hiển thị
+vị trí trên HERE Map, và cảnh báo (chữ + giọng nói) khi vượt tốc độ cho phép.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+Đây là **mã nguồn**, chưa phải project đã chạy `npx react-native init` — cần ghép vào
+một project RN CLI thật vì môi trường tạo file này không chạy được `npm`/`react-native`
+CLI (build native Android/iOS).
 
-## Step 1: Start Metro
+## 1. Tạo project RN CLI và copy source
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
-
-To start the Metro dev server, run the following command from the root of your React Native project:
-
-```sh
-# Using npm
-npm start
-
-# OR using Yarn
-yarn start
+```bash
+npx react-native init HereSpeedGuard --version 0.86.0
 ```
 
-## Step 2: Build and run your app
+> Bản 0.86 không có breaking change so với 0.85 và chưa bật Strict TypeScript API
+> mặc định (điều đó chỉ áp dụng từ 0.87 trở đi), nên code trong gói này chạy được
+> ngay không cần chỉnh sửa gì thêm cho tương thích API.
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+Sau đó copy đè các file/thư mục sau từ gói này vào project vừa tạo:
+- `App.tsx`
+- `src/`
+- `package.json` → merge phần `dependencies`/`devDependencies` vào file `package.json`
+  mà `react-native init` đã sinh ra (đừng ghi đè hoàn toàn, vì file gốc còn cấu hình
+  Jest/Metro khác theo đúng version RN của bạn).
 
-### Android
+## 2. Cài dependency
 
-```sh
-# Using npm
+```bash
+npm install
+cd ios && pod install && cd ..   # nếu build iOS
+```
+
+⚠️ `react-native-safe-area-context` là native module mới thêm vào (thay cho
+`SafeAreaView` cũ đã deprecated trong `react-native`) — nếu build Android báo lỗi
+thiếu module này sau khi merge `package.json`, chạy lại `npm install` rồi build lại;
+với iOS nhớ chạy lại `pod install`.
+
+## 3. Khai báo quyền vị trí
+
+- Android: mở `android/app/src/main/AndroidManifest.xml`, thêm nội dung trong
+  `android-AndroidManifest-additions.xml` (đặt trước thẻ `<application>`).
+- iOS: mở `ios/HereSpeedGuard/Info.plist`, thêm nội dung trong
+  `ios-Info-plist-additions.xml`.
+
+`react-native-tts` (Android) cần thêm queue TTS engine mặc định của máy — không cần
+cấu hình thêm, nhưng máy ảo (emulator) thường KHÔNG có sẵn giọng đọc, nên test giọng
+nói trên máy thật hoặc cài Google Text-to-Speech trên emulator.
+
+## 4. Cấu hình HERE API Key
+
+Mở `src/config/AppConfig.ts`, thay `YOUR_HERE_API_KEY` bằng key thật lấy tại
+https://platform.here.com (dùng cho cả HERE Maps JS API hiển thị bản đồ, và API
+tra cứu tốc độ cho phép).
+
+⚠️ **Về API tốc độ cho phép**: `src/services/SpeedLimitService.ts` dùng
+**HERE Map Attributes API v8**:
+
+```
+GET https://smap.hereapi.com/v8/maps/attributes
+    ?layers=SPEED_LIMITS_FC1,SPEED_LIMITS_FC2,SPEED_LIMITS_FC3,SPEED_LIMITS_FC4,SPEED_LIMITS_FC5
+    &in=proximity:<lat>,<lon>;r=50
+    &apiKey=YOUR_HERE_API_KEY
+```
+
+- `SPEED_LIMITS_FCn` chỉ là tên mẫu: n = functional class (1-5) nên phải liệt kê
+  từng layer thật. Có thể bớt layer để tiết kiệm quota.
+- Response dạng `geometries[].attributes` (`FROM_REF_SPEED_LIMIT`,
+  `TO_REF_SPEED_LIMIT`, `SPEED_LIMIT_UNIT` = K/M). App chọn đoạn đường gần vị trí
+  GPS nhất và quy đổi về km/h.
+- Cân nhắc layer `APPLICABLE_SPEED_LIMIT` (đã gộp giới hạn có điều kiện/giờ/loại
+  xe): https://docs.here.com/map-attributes/docs/applicablespeedlimit
+
+## 5. Chạy giả lập trên emulator (không có GPS thật)
+
+Emulator Android/iOS thường không phát tín hiệu tốc độ/hướng di chuyển thật, nên
+app đã có sẵn cơ chế **tự động chuyển sang GPS giả lập** khi không lấy được vị trí
+thật (không có quyền, GPS lỗi, hoặc không nhận được vị trí nào sau vài giây) — cấu
+hình tại `src/config/AppConfig.ts`:
+
+- `ENABLE_MOCK_LOCATION_FALLBACK`: bật/tắt cơ chế giả lập (mặc định `true`).
+- `MOCK_LOCATION_TIMEOUT_MS`: thời gian chờ GPS thật trước khi chuyển sang giả lập
+  (mặc định 6 giây).
+- `MOCK_LOCATION_ORIGIN`: toạ độ gốc để giả lập vị trí di chuyển quanh đó (mặc định
+  trung tâm TP.HCM).
+
+Khi đang dùng dữ liệu giả lập, overlay trên bản đồ hiện chữ **"● DỮ LIỆU GIẢ LẬP
+(TEST)"** để phân biệt với GPS thật. Tốc độ giả lập dao động hình sin 0-80 km/h
+(xem `src/services/MockLocationService.ts`), nên bạn sẽ thấy cảnh báo vượt tốc độ
+(chữ + giọng nói) tự kích hoạt định kỳ mà không cần di chuyển máy thật.
+
+⚠️ Trước khi build bản phát hành cho người dùng thật, nhớ đặt
+`ENABLE_MOCK_LOCATION_FALLBACK = false` trong `AppConfig.ts`, tránh trường hợp máy
+thật không lấy được GPS mà app lại "giả vờ" có vị trí.
+
+## 6. Chạy app
+
+```bash
 npm run android
-
-# OR using Yarn
-yarn android
-```
-
-### iOS
-
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
-```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
-bundle exec pod install
-```
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
+# hoặc
 npm run ios
-
-# OR using Yarn
-yarn ios
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+## Cách hoạt động
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+- `src/services/LocationService.ts`: dùng `react-native-geolocation-service` để
+  `watchPosition` liên tục — lấy toạ độ, tốc độ (m/s → convert km/h), hướng di
+  chuyển (heading, độ).
+- `src/components/HereMapView.tsx`: dùng **Leaflet** + **HERE Raster Tile API v3**
+  trong `WebView` (nhẹ, ổn định hơn HERE Maps JavaScript SDK đầy đủ — không cần
+  WebGL, không cần link HERE Native SDK), cập nhật marker vị trí hiện tại mỗi khi
+  GPS thay đổi. Xem https://docs.here.com/map-rendering/docs/example-leaflet.
+- `src/hooks/useSpeedGuard.ts`: logic chính —
+  - Khi tốc độ > 50 km/h **và** thay đổi ≥ 5 km/h so với lần kiểm tra gần nhất
+    (và cách lần gọi trước tối thiểu 5s, chống spam API) → gọi
+    `fetchSpeedLimit()`.
+  - Nếu tốc độ hiện tại > tốc độ cho phép trả về → gọi cảnh báo giọng nói.
+- `src/components/SpeedInfoOverlay.tsx`: hiển thị tốc độ/toạ độ/hướng + banner đỏ
+  "QUÁ TỐC ĐỘ CHO PHÉP" khi vượt.
+- `src/services/VoiceAlertService.ts`: đọc cảnh báo bằng `react-native-tts`
+  (tiếng Việt, fallback tiếng Anh nếu máy không có giọng vi-VN), giới hạn 1 lần
+  đọc / 8 giây để tránh làm phiền.
 
-## Step 3: Modify your app
+## Có thể mở rộng thêm
 
-Now that you have successfully run the app, let's make changes!
+- Cache tốc độ giới hạn theo từng đoạn đường (tránh gọi lại API khi đi lại cùng
+  tuyến).
+- Chạy theo dõi vị trí ở background (cần thêm `react-native-background-geolocation`
+  hoặc Foreground Service, vì `watchPosition` thường bị hệ điều hành tạm dừng khi
+  app xuống nền).
+- Thêm rung (`Vibration` API) kèm cảnh báo cho tình huống lái xe không nghe được
+  giọng nói.
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+## Build app android (apk)
+cd android
+.\gradlew.bat clean
+.\gradlew.bat assembleRelease

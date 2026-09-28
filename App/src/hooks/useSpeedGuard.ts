@@ -7,6 +7,8 @@ import {
   ENABLE_MOCK_LOCATION_FALLBACK,
   MOCK_LOCATION_TIMEOUT_MS,
   RATE_LIMIT_DEFAULT_COOLDOWN_MS,
+  RATE_LIMIT_MAX_COOLDOWN_MS,
+  DEBUG_FORCE_SPEED_LIMIT_KMH,
 } from '../config/AppConfig';
 import { ensureLocationPermission } from '../services/PermissionService';
 import { startWatchingLocation, stopWatchingLocation } from '../services/LocationService';
@@ -39,6 +41,8 @@ export function useSpeedGuard(): SpeedGuardState {
   const receivedRealGpsRef = useRef(false);
   // Nếu HERE trả 429, không gọi lại API cho tới mốc thời gian này
   const cooldownUntilRef = useRef<number>(0);
+  // Số lần bị 429 liên tiếp — dùng để tăng dần thời gian nghỉ (exponential backoff)
+  const rateLimitStreakRef = useRef<number>(0);
 
   const maybeCheckSpeedLimit = useCallback(async (data: GpsData) => {
     const { speedKmh, latitude, longitude } = data;
@@ -49,10 +53,25 @@ export function useSpeedGuard(): SpeedGuardState {
       return;
     }
 
+    // 🧪 Chế độ debug: ép cứng tốc độ giới hạn, bỏ qua hoàn toàn gọi HERE API.
+    if (DEBUG_FORCE_SPEED_LIMIT_KMH !== null) {
+      console.log(
+        `[useSpeedGuard] [DEBUG] Dùng tốc độ giới hạn ép cứng = ${DEBUG_FORCE_SPEED_LIMIT_KMH}km/h (tốc độ hiện tại: ${speedKmh.toFixed(1)}km/h)`,
+      );
+      setSpeedLimitKmh(DEBUG_FORCE_SPEED_LIMIT_KMH);
+      if (speedKmh > DEBUG_FORCE_SPEED_LIMIT_KMH) {
+        speakOverspeedWarning(speedKmh, DEBUG_FORCE_SPEED_LIMIT_KMH);
+      }
+      return;
+    }
+
     const now = Date.now();
 
     if (now < cooldownUntilRef.current) {
       // Đang trong thời gian "nghỉ" do bị HERE trả 429 trước đó — bỏ qua, không gọi tiếp.
+      console.log(
+        `[useSpeedGuard] Bỏ qua kiểm tra (đang cooldown do 429, còn ${Math.round((cooldownUntilRef.current - now) / 1000)}s)`,
+      );
       return;
     }
 
@@ -68,20 +87,35 @@ export function useSpeedGuard(): SpeedGuardState {
     lastCheckedSpeedRef.current = speedKmh;
     lastCheckedAtRef.current = now;
 
+    console.log(
+      `[useSpeedGuard] Tốc độ hiện tại ${speedKmh.toFixed(1)}km/h > ngưỡng — gọi API kiểm tra tốc độ giới hạn tại (${latitude.toFixed(5)}, ${longitude.toFixed(5)})`,
+    );
+
     const result = await fetchSpeedLimit(latitude, longitude);
     inFlightRef.current = false;
 
     if (result.rateLimited) {
-      const cooldownMs = result.retryAfterMs ?? RATE_LIMIT_DEFAULT_COOLDOWN_MS;
+      rateLimitStreakRef.current += 1;
+      const backoffMs =
+        RATE_LIMIT_DEFAULT_COOLDOWN_MS * Math.pow(2, rateLimitStreakRef.current - 1);
+      const cooldownMs = result.retryAfterMs ?? Math.min(backoffMs, RATE_LIMIT_MAX_COOLDOWN_MS);
       cooldownUntilRef.current = Date.now() + cooldownMs;
+      console.warn(
+        `[useSpeedGuard] Bị 429 lần thứ ${rateLimitStreakRef.current} liên tiếp — nghỉ ${Math.round(cooldownMs / 1000)}s trước khi thử lại.`,
+      );
       return;
     }
 
+    rateLimitStreakRef.current = 0;
+
     if (result.speedLimitKmh !== null) {
+      console.log(`[useSpeedGuard] Tốc độ giới hạn nhận được: ${result.speedLimitKmh}km/h`);
       setSpeedLimitKmh(result.speedLimitKmh);
       if (speedKmh > result.speedLimitKmh) {
         speakOverspeedWarning(speedKmh, result.speedLimitKmh);
       }
+    } else {
+      console.log('[useSpeedGuard] Không lấy được tốc độ giới hạn (API không có dữ liệu tuyến đường tại vị trí này).');
     }
   }, []);
 

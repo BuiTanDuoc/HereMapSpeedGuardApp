@@ -29,9 +29,23 @@ export default function SpeedInfoOverlay({ gps, speedLimitKmh, isOverLimit }: Pr
         {gps?.isMock && <Text style={styles.mockTag}>● DỮ LIỆU GIẢ LẬP (TEST)</Text>}
       </View>
 
-      {isOverLimit && (
-        <View style={styles.warningBanner}>
-          <Text style={styles.warningText}>⚠ QUÁ TỐC ĐỘ CHO PHÉP</Text>
+      {isOverLimit && gps && speedLimitKmh !== null && (
+        <View style={styles.warningContainer}>
+          <View style={styles.warningCard}>
+            <Text style={styles.warningTitle}>⚠ QUÁ TỐC ĐỘ CHO PHÉP</Text>
+            <View style={styles.warningRow}>
+              <View style={styles.warningCol}>
+                <Text style={styles.warningLabel}>Hiện tại</Text>
+                <Text style={styles.warningCurrent}>{Math.round(gps.speedKmh)}</Text>
+              </View>
+              <Text style={styles.warningSlash}>/</Text>
+              <View style={styles.warningCol}>
+                <Text style={styles.warningLabel}>Cho phép</Text>
+                <Text style={styles.warningLimit}>{speedLimitKmh}</Text>
+              </View>
+            </View>
+            <Text style={styles.warningUnit}>km/h</Text>
+          </View>
         </View>
       )}
     </View>
@@ -71,19 +85,61 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginTop: 6,
   },
-  warningBanner: {
+  // Cảnh báo đặt giữa màn hình, không che khối thông tin tốc độ ở góc trên trái
+  warningContainer: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#d0342c',
-    paddingVertical: 14,
-    paddingTop: 40,
+    bottom: 0,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  warningText: {
+  warningCard: {
+    backgroundColor: '#d0342cee',
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 28,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#ffffff',
+  },
+  warningTitle: {
     color: '#ffffff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  warningRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  warningCol: {
+    alignItems: 'center',
+    minWidth: 80,
+  },
+  warningLabel: {
+    color: '#ffe3e0',
+    fontSize: 12,
+  },
+  warningCurrent: {
+    color: '#ffffff',
+    fontSize: 44,
+    fontWeight: 'bold',
+  },
+  warningLimit: {
+    color: '#ffffff',
+    fontSize: 32,
+    fontWeight: 'bold',
+  },
+  warningSlash: {
+    color: '#ffffff',
+    fontSize: 36,
+    marginHorizontal: 8,
+  },
+  warningUnit: {
+    color: '#ffe3e0',
+    fontSize: 13,
+    marginTop: 2,
   },
 });

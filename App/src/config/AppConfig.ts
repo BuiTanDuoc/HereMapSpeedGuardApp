@@ -4,7 +4,7 @@
  * Nên tách sang biến môi trường (.env / react-native-config) khi build production,
  * tránh commit key thật lên git.
  */
-export const HERE_API_KEY = 'YOUR_HERE_API_KEY';
+export const HERE_API_KEY = 'ezNJO0jlK6ACNZBBmmWo8l22fFmq8iqtNNp2LHTTlpQ'; //'sOk5-lcrpA3D7AywrljbIlqQwqCBdWibaDP-K5OfEew';
 
 /**
  * Ngưỡng tốc độ (km/h) để bắt đầu coi là "chạy nhanh" và cần tra cứu tốc độ cho phép.
@@ -26,9 +26,22 @@ export const SPEED_CHECK_MIN_INTERVAL_MS = 10000;
 /**
  * Nếu HERE trả về lỗi 429 (vượt rate limit) và không có header Retry-After,
  * tạm dừng gọi API trong khoảng thời gian này (ms) trước khi thử lại.
+ * Mỗi lần bị 429 liên tiếp, thời gian nghỉ sẽ tự nhân đôi (tối đa
+ * RATE_LIMIT_MAX_COOLDOWN_MS) để tránh dồn dập gọi lại rồi lại bị chặn tiếp.
  */
 export const RATE_LIMIT_DEFAULT_COOLDOWN_MS = 30000;
 
+/** Thời gian nghỉ tối đa (ms) dù bị 429 liên tiếp bao nhiêu lần. */
+export const RATE_LIMIT_MAX_COOLDOWN_MS = 5 * 60 * 1000; // 5 phút
+
+/**
+ * 🧪 CHẾ ĐỘ TEST: đặt 1 số (ví dụ 50) để ÉP CỨNG tốc độ giới hạn, bỏ qua hoàn
+ * toàn việc gọi HERE API — dùng khi muốn test logic cảnh báo vượt tốc độ +
+ * giọng nói mà không phụ thuộc vào HERE API (ví dụ đang bị 429/hết quota).
+ * Đặt lại về `null` để dùng dữ liệu thật từ HERE.
+ */
+export const DEBUG_FORCE_SPEED_LIMIT_KMH: number | null = null;
+// export const DEBUG_FORCE_SPEED_LIMIT_KMH: number | null = 60;
 /**
  * Cấu hình theo dõi vị trí GPS.
  */
@@ -60,4 +73,4 @@ export const MOCK_LOCATION_ORIGIN = {
 };
 
 /** Khoảng thời gian (ms) giữa mỗi lần phát ra 1 điểm GPS giả lập. */
-export const MOCK_LOCATION_INTERVAL_MS = 1000;
+export const MOCK_LOCATION_INTERVAL_MS = 5000;
