@@ -1,47 +1,70 @@
 /**
  * Cấu hình chung của app.
  * ⚠️ Thay YOUR_HERE_API_KEY bằng API Key HERE thật (lấy tại https://platform.here.com).
+ * Key cần bật các dịch vụ: Routing v8, Geocoding & Search (Discover), Raster Tile API v3.
  * Nên tách sang biến môi trường (.env / react-native-config) khi build production,
  * tránh commit key thật lên git.
  */
-export const HERE_API_KEY = 'ezNJO0jlK6ACNZBBmmWo8l22fFmq8iqtNNp2LHTTlpQ'; //'sOk5-lcrpA3D7AywrljbIlqQwqCBdWibaDP-K5OfEew';
+export const HERE_API_KEY = 'YOUR_HERE_API_KEY';
+
+/* ------------------------------------------------------------------ */
+/* Chỉ đường (HERE Routing API v8) + tìm địa điểm (HERE Discover)      */
+/* ------------------------------------------------------------------ */
+
+export const HERE_ROUTING_ENDPOINT = 'https://router.hereapi.com/v8/routes';
+export const HERE_DISCOVER_ENDPOINT = 'https://discover.search.hereapi.com/v1/discover';
+
+/** Phương tiện dùng để tính đường: car | truck | scooter | bicycle ... (tốc độ giới hạn phụ thuộc mode này). */
+export const ROUTING_TRANSPORT_MODE = 'car';
+
+/** Ngôn ngữ chỉ dẫn rẽ, thử lần lượt từ trái sang phải; nếu HERE không có tiếng Việt sẽ rơi về tiếng Anh. */
+export const ROUTING_LANG = 'vi-VN,en-US';
+
+/** Giới hạn kết quả tìm địa điểm theo quốc gia (mã ISO 3166-1 alpha-3). null = không giới hạn. */
+export const SEARCH_COUNTRY_CODE: string | null = 'VNM';
+
+/** Số kết quả tìm địa điểm tối đa. */
+export const SEARCH_LIMIT = 6;
+
+/** Khoảng cách tối thiểu (mét) tới tuyến để coi là "lệch tuyến" (xem thêm OFF_ROUTE_ACCURACY_FACTOR). */
+export const MIN_OFF_ROUTE_DISTANCE_M = 60;
 
 /**
- * Ngưỡng tốc độ (km/h) để bắt đầu coi là "chạy nhanh" và cần tra cứu tốc độ cho phép.
+ * Coi là "lệch tuyến" khi khoảng cách tới tuyến > max(MIN_OFF_ROUTE_DISTANCE_M, độ chính xác GPS × hệ số này).
  */
-export const SPEED_CHECK_THRESHOLD_KMH = 50;
+export const OFF_ROUTE_ACCURACY_FACTOR = 1.5;
+
+/** Số lần cập nhật GPS liên tiếp bị lệch tuyến trước khi tự tính lại đường (chống GPS nhảy 1-2 điểm). */
+export const OFF_ROUTE_CONSECUTIVE_FIXES = 4;
+
+/** Khoảng cách tối thiểu (ms) giữa 2 lần tính lại đường, tránh gọi Routing API liên tục. */
+export const REROUTE_MIN_INTERVAL_MS = 15000;
+
+/** Khi tìm vị trí trên tuyến, chỉ xét trong khoảng N điểm phía trước vị trí cũ (tránh nhảy nhầm khi tuyến đi qua cùng 1 đường 2 lần). */
+export const ROUTE_MATCH_LOOKAHEAD_POINTS = 80;
+
+/** Còn cách đích ≤ mức này (mét) thì coi là đã đến nơi. */
+export const ARRIVAL_DISTANCE_M = 30;
+
+/* ------------------------------------------------------------------ */
+/* Cảnh báo quá tốc độ                                                 */
+/* ------------------------------------------------------------------ */
+
+/** Dung sai (km/h): chỉ cảnh báo khi tốc độ > tốc độ cho phép + dung sai. 0 = cảnh báo ngay khi vượt. */
+export const OVERSPEED_TOLERANCE_KMH = 0;
 
 /**
- * Biên độ thay đổi tốc độ (km/h) tối thiểu giữa 2 lần gọi API,
- * để tránh gọi API liên tục khi tốc độ dao động nhẹ.
- */
-export const SPEED_CHECK_DELTA_KMH = 5;
-
-/**
- * Khoảng thời gian tối thiểu (ms) giữa 2 lần gọi API kiểm tra tốc độ,
- * để tránh vượt rate-limit của HERE khi tốc độ thay đổi nhanh liên tục.
- */
-export const SPEED_CHECK_MIN_INTERVAL_MS = 10000;
-
-/**
- * Nếu HERE trả về lỗi 429 (vượt rate limit) và không có header Retry-After,
- * tạm dừng gọi API trong khoảng thời gian này (ms) trước khi thử lại.
- * Mỗi lần bị 429 liên tiếp, thời gian nghỉ sẽ tự nhân đôi (tối đa
- * RATE_LIMIT_MAX_COOLDOWN_MS) để tránh dồn dập gọi lại rồi lại bị chặn tiếp.
- */
-export const RATE_LIMIT_DEFAULT_COOLDOWN_MS = 30000;
-
-/** Thời gian nghỉ tối đa (ms) dù bị 429 liên tiếp bao nhiêu lần. */
-export const RATE_LIMIT_MAX_COOLDOWN_MS = 5 * 60 * 1000; // 5 phút
-
-/**
- * 🧪 CHẾ ĐỘ TEST: đặt 1 số (ví dụ 50) để ÉP CỨNG tốc độ giới hạn, bỏ qua hoàn
- * toàn việc gọi HERE API — dùng khi muốn test logic cảnh báo vượt tốc độ +
- * giọng nói mà không phụ thuộc vào HERE API (ví dụ đang bị 429/hết quota).
- * Đặt lại về `null` để dùng dữ liệu thật từ HERE.
+ * 🧪 CHẾ ĐỘ TEST: đặt 1 số (ví dụ 50) để ÉP CỨNG tốc độ giới hạn cho toàn tuyến, bỏ qua
+ * dữ liệu tốc độ từ HERE — dùng khi muốn test logic cảnh báo + giọng nói mà không phụ
+ * thuộc dữ liệu đường. Đặt lại về `null` để dùng dữ liệu thật từ HERE.
  */
 export const DEBUG_FORCE_SPEED_LIMIT_KMH: number | null = null;
 // export const DEBUG_FORCE_SPEED_LIMIT_KMH: number | null = 60;
+
+/* ------------------------------------------------------------------ */
+/* GPS                                                                 */
+/* ------------------------------------------------------------------ */
+
 /**
  * Cấu hình theo dõi vị trí GPS.
  */
@@ -56,7 +79,9 @@ export const LOCATION_OPTIONS = {
  * Cấu hình giả lập GPS — dùng để test trên emulator/thiết bị không phát tín hiệu
  * tốc độ, hướng di chuyển thật. Khi bật, nếu không nhận được bất kỳ vị trí GPS thật
  * nào trong MOCK_LOCATION_TIMEOUT_MS, hoặc GPS báo lỗi, app tự chuyển sang dữ liệu
- * giả lập (tốc độ dao động 0-80km/h) để vẫn test được luồng cảnh báo vượt tốc độ.
+ * giả lập để vẫn test được luồng chỉ đường + cảnh báo vượt tốc độ:
+ *  - Khi chưa khởi hành: xe giả lập chạy quanh MOCK_LOCATION_ORIGIN.
+ *  - Sau khi bấm "Khởi hành": xe giả lập chạy dọc theo tuyến đã tính, tốc độ dao động 0-80km/h.
  *
  * ⚠️ Nhớ đặt ENABLE_MOCK_LOCATION_FALLBACK = false trước khi build bản thật cho
  * người dùng, tránh app "giả vờ" có GPS khi máy thật không lấy được vị trí.
@@ -72,5 +97,8 @@ export const MOCK_LOCATION_ORIGIN = {
   longitude: 106.7009,
 };
 
-/** Khoảng thời gian (ms) giữa mỗi lần phát ra 1 điểm GPS giả lập. */
+/** Khoảng thời gian (ms) giữa mỗi lần phát ra 1 điểm GPS giả lập khi chưa khởi hành. */
 export const MOCK_LOCATION_INTERVAL_MS = 5000;
+
+/** Khoảng thời gian (ms) giữa mỗi điểm GPS giả lập khi chạy dọc tuyến (sau "Khởi hành"). */
+export const MOCK_ROUTE_SIM_INTERVAL_MS = 1000;

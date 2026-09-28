@@ -155,3 +155,10 @@ export function speakOverspeedWarning(currentKmh: number, limitKmh: number): voi
     console.warn('[VoiceAlertService] Lỗi khi đọc cảnh báo:', err);
   });
 }
+
+/** Ngắt giọng đang đọc và reset bộ đếm giãn cách — gọi khi kết thúc chuyến đi. */
+export function stopVoiceAlert(): void {
+  lastSpokenAt = 0;
+  if (status.state !== 'ready') return;
+  Tts.stop().catch(() => {});
+}

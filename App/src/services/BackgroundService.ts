@@ -4,7 +4,7 @@ import BackgroundService from 'react-native-background-actions';
 /**
  * Chạy nền bằng Foreground Service (Android): hiện 1 notification thường trực và giữ
  * tiến trình app sống khi tắt màn hình / chuyển sang app khác, nhờ đó GPS + cảnh báo
- * giọng nói vẫn hoạt động. Logic theo dõi vẫn nằm trong useSpeedGuard; service này
+ * giọng nói vẫn hoạt động. Logic theo dõi vẫn nằm trong useNavigation; service này
  * chỉ giữ cho tiến trình JS không bị hệ điều hành tạm dừng.
  */
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));

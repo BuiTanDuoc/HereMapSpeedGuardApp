@@ -56,23 +56,26 @@ Mở `src/config/AppConfig.ts`, thay `YOUR_HERE_API_KEY` bằng key thật lấy
 https://platform.here.com (dùng cho cả HERE Maps JS API hiển thị bản đồ, và API
 tra cứu tốc độ cho phép).
 
-⚠️ **Về API tốc độ cho phép**: `src/services/SpeedLimitService.ts` dùng
-**HERE Map Attributes API v8**:
+⚠️ **API key cần bật**: Routing v8, Geocoding & Search (Discover), Raster Tile API v3.
 
-```
-GET https://smap.hereapi.com/v8/maps/attributes
-    ?layers=SPEED_LIMITS_FC1,SPEED_LIMITS_FC2,SPEED_LIMITS_FC3,SPEED_LIMITS_FC4,SPEED_LIMITS_FC5
-    &in=proximity:<lat>,<lon>;r=50
-    &apiKey=YOUR_HERE_API_KEY
-```
+## 4b. Chỉ đường + cảnh báo quá tốc độ (luồng sử dụng)
 
-- `SPEED_LIMITS_FCn` chỉ là tên mẫu: n = functional class (1-5) nên phải liệt kê
-  từng layer thật. Có thể bớt layer để tiết kiệm quota.
-- Response dạng `geometries[].attributes` (`FROM_REF_SPEED_LIMIT`,
-  `TO_REF_SPEED_LIMIT`, `SPEED_LIMIT_UNIT` = K/M). App chọn đoạn đường gần vị trí
-  GPS nhất và quy đổi về km/h.
-- Cân nhắc layer `APPLICABLE_SPEED_LIMIT` (đã gộp giới hạn có điều kiện/giờ/loại
-  xe): https://docs.here.com/map-attributes/docs/applicablespeedlimit
+1. Gõ tên địa điểm ở ô tìm kiếm (HERE Discover API) **hoặc chạm thẳng lên bản đồ** để chọn điểm đến.
+2. App gọi **HERE Routing API v8 một lần** để lấy tuyến đường + tốc độ giới hạn của từng đoạn
+   đường dọc tuyến (`spans=maxSpeed`, trả về m/s, app đổi sang km/h). Bản đồ vẽ tuyến, hiện thời gian/quãng đường.
+3. Bấm **▶ Khởi hành**: bắt đầu dẫn đường (bản đồ bám theo xe, banner chỉ dẫn rẽ) và **bật cảnh báo quá tốc độ**
+   (chữ + giọng nói) + chạy nền (foreground service).
+4. Bấm **■ Kết thúc**: dừng dẫn đường, **tắt cảnh báo**, tắt chạy nền, xoá tuyến.
+
+Trước khi bấm "Khởi hành" và sau khi "Kết thúc", app chỉ hiện vị trí/tốc độ — **không** cảnh báo.
+
+**Không gọi API theo từng điểm GPS**: tốc độ giới hạn đã nằm sẵn trong dữ liệu tuyến (`RoutePlan.segments`),
+`RouteTracker` chỉ chiếu vị trí GPS lên polyline (tính cục bộ) để biết đang ở đoạn nào rồi so sánh.
+Chỉ gọi thêm API khi **lệch tuyến** liên tiếp `OFF_ROUTE_CONSECUTIVE_FIXES` điểm (tính lại đường, kèm tốc độ tuyến mới).
+
+Lưu ý: đoạn đường HERE không có dữ liệu tốc độ → không cảnh báo ở đoạn đó. Tốc độ phụ thuộc
+`ROUTING_TRANSPORT_MODE` (mặc định `car`). Chỉ dẫn rẽ dùng `ROUTING_LANG` (thử tiếng Việt, rơi về tiếng Anh).
+Các tham số nằm ở `src/config/AppConfig.ts`.
 
 ## 5. Chạy giả lập trên emulator (không có GPS thật)
 
@@ -87,7 +90,8 @@ hình tại `src/config/AppConfig.ts`:
 - `MOCK_LOCATION_ORIGIN`: toạ độ gốc để giả lập vị trí di chuyển quanh đó (mặc định
   trung tâm TP.HCM).
 
-Khi đang dùng dữ liệu giả lập, overlay trên bản đồ hiện chữ **"● DỮ LIỆU GIẢ LẬP
+Trước khi khởi hành xe giả lập chạy quanh gốc; **sau khi bấm "Khởi hành" xe giả lập chạy dọc theo tuyến đã tính**
+(tốc độ dao động 0-80 km/h) để test cảnh báo + chỉ dẫn rẽ. Khi đang dùng dữ liệu giả lập, overlay trên bản đồ hiện chữ **"● DỮ LIỆU GIẢ LẬP
 (TEST)"** để phân biệt với GPS thật. Tốc độ giả lập dao động hình sin 0-80 km/h
 (xem `src/services/MockLocationService.ts`), nên bạn sẽ thấy cảnh báo vượt tốc độ
 (chữ + giọng nói) tự kích hoạt định kỳ mà không cần di chuyển máy thật.
@@ -95,11 +99,6 @@ Khi đang dùng dữ liệu giả lập, overlay trên bản đồ hiện chữ 
 ⚠️ Trước khi build bản phát hành cho người dùng thật, nhớ đặt
 `ENABLE_MOCK_LOCATION_FALLBACK = false` trong `AppConfig.ts`, tránh trường hợp máy
 thật không lấy được GPS mà app lại "giả vờ" có vị trí.
-
-## Patch trực tiếp thư viện, fix lỗi khi build
- *** Error: A problem occurred evaluating project ':react-native-tts'. > Could not find method jcenter() for arguments [] on repository container of type org.gradle.api.internal.artifacts.dsl.DefaultRepositoryHandler.
-- Mở file bị lỗi: node_modules/react-native-tts/android/build.gradle trong project
-- Thay jcenter() bằng mavenCentral() (Tìm tất cả dòng có chữ jcenter() đổi thành mavenCentral(). Nếu một block đã có sẵn mavenCentral() rồi thì chỉ cần xóa dòng jcenter() thừa.)
 
 ## 6. Chạy app
 
@@ -118,11 +117,10 @@ npm run ios
   trong `WebView` (nhẹ, ổn định hơn HERE Maps JavaScript SDK đầy đủ — không cần
   WebGL, không cần link HERE Native SDK), cập nhật marker vị trí hiện tại mỗi khi
   GPS thay đổi. Xem https://docs.here.com/map-rendering/docs/example-leaflet.
-- `src/hooks/useSpeedGuard.ts`: logic chính —
-  - Khi tốc độ > 50 km/h **và** thay đổi ≥ 5 km/h so với lần kiểm tra gần nhất
-    (và cách lần gọi trước tối thiểu 5s, chống spam API) → gọi
-    `fetchSpeedLimit()`.
-  - Nếu tốc độ hiện tại > tốc độ cho phép trả về → gọi cảnh báo giọng nói.
+- `src/services/RoutingService.ts`: gọi Routing v8 (tuyến + tốc độ theo span + chỉ dẫn) và Discover (tìm địa điểm).
+- `src/services/RouteTracker.ts`: so khớp GPS với tuyến, tra tốc độ giới hạn, phát hiện lệch tuyến/đến nơi — không gọi mạng.
+- `src/utils/flexPolyline.ts`: giải mã HERE Flexible Polyline.
+- `src/hooks/useNavigation.ts`: máy trạng thái `idle → planning → navigating`; chỉ ở `navigating` mới cảnh báo tốc độ.
 - `src/components/SpeedInfoOverlay.tsx`: hiển thị tốc độ/toạ độ/hướng + banner đỏ
   "QUÁ TỐC ĐỘ CHO PHÉP" khi vượt.
 - `src/services/VoiceAlertService.ts`: đọc cảnh báo bằng `react-native-tts`

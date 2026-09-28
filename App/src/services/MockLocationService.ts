@@ -1,8 +1,10 @@
 import {
   MOCK_LOCATION_ORIGIN,
   MOCK_LOCATION_INTERVAL_MS,
+  MOCK_ROUTE_SIM_INTERVAL_MS,
 } from '../config/AppConfig';
-import { GpsData } from '../types';
+import { GpsData, RoutePlan } from '../types';
+import { pointAlongRoute } from './RouteTracker';
 
 /**
  * Giả lập GPS để test trên emulator/thiết bị không có sẵn vị trí + tốc độ di
@@ -44,4 +46,37 @@ export function stopMockLocation(
   timerId: ReturnType<typeof setInterval>,
 ): void {
   clearInterval(timerId);
+}
+
+/**
+ * Giả lập xe chạy DỌC THEO tuyến đã tính (dùng sau khi bấm "Khởi hành" khi không có GPS thật).
+ * Tốc độ dao động 0-80km/h (chu kỳ ~63s) nên sẽ đi qua cả đoạn dưới/trên tốc độ cho phép, giúp
+ * test cảnh báo. Khi tới cuối tuyến thì đứng yên tại đích (tốc độ 0).
+ */
+export function startRouteSimulation(
+  route: RoutePlan,
+  onUpdate: (data: GpsData) => void,
+  intervalMs: number = MOCK_ROUTE_SIM_INTERVAL_MS,
+): ReturnType<typeof setInterval> {
+  let tick = 0;
+  let traveledMeters = 0;
+  const dtSeconds = intervalMs / 1000;
+
+  return setInterval(() => {
+    tick += 1;
+    const atEnd = traveledMeters >= route.totalMeters;
+    const speedKmh = atEnd ? 0 : Math.max(0, 40 + 40 * Math.sin((tick * dtSeconds) / 10));
+    traveledMeters += (speedKmh / 3.6) * dtSeconds;
+
+    const { position, heading } = pointAlongRoute(route, traveledMeters);
+    onUpdate({
+      latitude: position.latitude,
+      longitude: position.longitude,
+      speedKmh,
+      heading,
+      accuracy: 5,
+      timestamp: Date.now(),
+      isMock: true,
+    });
+  }, intervalMs);
 }

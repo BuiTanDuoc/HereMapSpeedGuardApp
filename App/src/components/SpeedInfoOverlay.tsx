@@ -6,12 +6,14 @@ interface Props {
   gps: GpsData | null;
   speedLimitKmh: number | null;
   isOverLimit: boolean;
+  /** Khoảng cách (px) từ mép trên màn hình tới khối thông tin — để né thanh tìm kiếm / banner chỉ dẫn. */
+  topOffset?: number;
 }
 
-export default function SpeedInfoOverlay({ gps, speedLimitKmh, isOverLimit }: Props) {
+export default function SpeedInfoOverlay({ gps, speedLimitKmh, isOverLimit, topOffset = 16 }: Props) {
   return (
     <View style={styles.wrapper} pointerEvents="none">
-      <View style={styles.infoBox}>
+      <View style={[styles.infoBox, { top: topOffset }]}>
         <Text style={styles.speedText}>
           {gps ? `${Math.round(gps.speedKmh)} km/h` : '-- km/h'}
         </Text>
