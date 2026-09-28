@@ -1,12 +1,17 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { BackHandler, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import HereMapView from '../components/HereMapView';
 import SpeedInfoOverlay from '../components/SpeedInfoOverlay';
 import { useSpeedGuard } from '../hooks/useSpeedGuard';
 
 export default function HomeScreen() {
-  const { gps, speedLimitKmh, isOverLimit, permissionDenied, errorMessage, voiceStatus } =
+  const { gps, speedLimitKmh, isOverLimit, permissionDenied, errorMessage, voiceStatus, stopTracking } =
     useSpeedGuard();
+
+  const handleStop = async () => {
+    await stopTracking();
+    BackHandler.exitApp();
+  };
 
   if (permissionDenied) {
     return (
@@ -27,6 +32,9 @@ export default function HomeScreen() {
         heading={gps?.heading ?? null}
       />
       <SpeedInfoOverlay gps={gps} speedLimitKmh={speedLimitKmh} isOverLimit={isOverLimit} />
+      <TouchableOpacity style={styles.stopButton} onPress={handleStop} activeOpacity={0.7}>
+        <Text style={styles.stopButtonText}>⏻ Dừng & thoát</Text>
+      </TouchableOpacity>
       <View style={styles.bottomBanners} pointerEvents="none">
         {voiceStatus.message && voiceStatus.state !== 'initializing' && (
           <View style={styles.voiceBanner}>
@@ -53,6 +61,18 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   errorText: { color: '#ffffff', textAlign: 'center', fontSize: 15 },
+  stopButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    backgroundColor: '#0f1117dd',
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: '#ffffff55',
+  },
+  stopButtonText: { color: '#ffffff', fontSize: 13, fontWeight: 'bold' },
   bottomBanners: {
     position: 'absolute',
     bottom: 24,

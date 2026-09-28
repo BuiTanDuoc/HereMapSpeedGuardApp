@@ -11,7 +11,12 @@ import {
   RATE_LIMIT_MAX_COOLDOWN_MS,
   DEBUG_FORCE_SPEED_LIMIT_KMH,
 } from '../config/AppConfig';
-import { ensureLocationPermission } from '../services/PermissionService';
+import { ensureLocationPermission, ensureNotificationPermission } from '../services/PermissionService';
+import {
+  startBackgroundTracking,
+  stopBackgroundTracking,
+  updateBackgroundNotification,
+} from '../services/BackgroundService';
 import { startWatchingLocation, stopWatchingLocation } from '../services/LocationService';
 import { startMockLocation, stopMockLocation } from '../services/MockLocationService';
 import { fetchSpeedLimit } from '../services/SpeedLimitService';
@@ -32,6 +37,8 @@ export interface SpeedGuardState {
   permissionDenied: boolean;
   errorMessage: string | null;
   voiceStatus: VoiceStatus;
+  /** Dừng chạy nền (tắt notification + foreground service). */
+  stopTracking: () => Promise<void>;
 }
 
 export function useSpeedGuard(): SpeedGuardState {
@@ -162,6 +169,13 @@ export function useSpeedGuard(): SpeedGuardState {
       const granted = await ensureLocationPermission();
       if (!mounted) return;
 
+      if (granted) {
+        // Bật chế độ chạy nền (foreground service). Không await để không chặn việc lấy GPS.
+        ensureNotificationPermission().then(() => {
+          if (mounted) startBackgroundTracking();
+        });
+      }
+
       if (!granted) {
         if (ENABLE_MOCK_LOCATION_FALLBACK) {
           // Không có quyền vị trí (thường gặp khi test nhanh trên emulator) —
@@ -221,5 +235,26 @@ export function useSpeedGuard(): SpeedGuardState {
   const isOverLimit =
     gps !== null && speedLimitKmh !== null && gps.speedKmh > speedLimitKmh;
 
-  return { gps, speedLimitKmh, isOverLimit, permissionDenied, errorMessage, voiceStatus };
+  // Hiển thị tốc độ hiện tại trên notification của chế độ chạy nền
+  useEffect(() => {
+    if (!gps) return;
+    const limitText = speedLimitKmh !== null ? ` / giới hạn ${speedLimitKmh}` : '';
+    updateBackgroundNotification(
+      `${Math.round(gps.speedKmh)} km/h${limitText}${isOverLimit ? ' ⚠ QUÁ TỐC ĐỘ' : ''}`,
+    );
+  }, [gps, speedLimitKmh, isOverLimit]);
+
+  const stopTracking = useCallback(async () => {
+    await stopBackgroundTracking();
+  }, []);
+
+  return {
+    gps,
+    speedLimitKmh,
+    isOverLimit,
+    permissionDenied,
+    errorMessage,
+    voiceStatus,
+    stopTracking,
+  };
 }

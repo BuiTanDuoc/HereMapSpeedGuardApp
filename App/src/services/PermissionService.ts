@@ -28,3 +28,21 @@ export async function ensureLocationPermission(): Promise<boolean> {
   const result = await request(permission);
   return result === RESULTS.GRANTED;
 }
+
+/**
+ * Android 13+ cần xin quyền hiện thông báo để notification của chế độ chạy nền hiển
+ * thị. Bị từ chối thì service vẫn chạy nhưng không thấy notification.
+ */
+export async function ensureNotificationPermission(): Promise<void> {
+  if (Platform.OS !== 'android' || Number(Platform.Version) < 33) {
+    return;
+  }
+  try {
+    const status = await check(PERMISSIONS.ANDROID.POST_NOTIFICATIONS);
+    if (status !== RESULTS.GRANTED) {
+      await request(PERMISSIONS.ANDROID.POST_NOTIFICATIONS);
+    }
+  } catch (e) {
+    console.warn('[PermissionService] Không xin được quyền thông báo:', e);
+  }
+}

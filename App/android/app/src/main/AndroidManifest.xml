@@ -1,18 +1,28 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Cần nếu muốn tiếp tục lấy GPS khi app chạy nền (không bắt buộc cho bản demo này) -->
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!--
+    CHẠY NỀN (foreground service, thư viện react-native-background-actions).
+    1) Thêm các quyền sau (cạnh các <uses-permission> khác, trước <application>):
+  -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+  <!--
+    BẮT BUỘC cho giọng nói (Android 11+): khai báo <queries> để app nhìn thấy TTS engine
+    của máy (Google Text-to-Speech, Samsung TTS...). Thiếu khối này, Tts.getInitStatus()
+    báo "no_engine" dù máy đã cài TTS. Đặt <queries> làm phần tử con của <manifest>,
+    cùng cấp (trước hoặc sau) với thẻ <application>.
+  -->
     <queries>
      <intent>
        <action android:name="android.intent.action.TTS_SERVICE" />
      </intent>
    </queries>
+   
     <application
       android:name=".MainApplication"
       android:label="@string/app_name"
@@ -34,5 +44,13 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
       </activity>
+      <!--
+        2) Khai báo service BÊN TRONG thẻ <application>. Lưu ý: hướng dẫn của thư viện dùng
+        foregroundServiceType="shortService" (tự bị hệ thống dừng sau ~3 phút), KHÔNG dùng được
+        cho theo dõi liên tục — phải dùng "location":
+      -->
+      <service
+        android:name="com.asterinet.react.bgactions.RNBackgroundActionsTask"
+        android:foregroundServiceType="location" />
     </application>
 </manifest>
