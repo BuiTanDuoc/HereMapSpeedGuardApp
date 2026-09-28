@@ -96,6 +96,11 @@ Khi đang dùng dữ liệu giả lập, overlay trên bản đồ hiện chữ 
 `ENABLE_MOCK_LOCATION_FALLBACK = false` trong `AppConfig.ts`, tránh trường hợp máy
 thật không lấy được GPS mà app lại "giả vờ" có vị trí.
 
+## Patch trực tiếp thư viện, fix lỗi khi build
+ *** Error: A problem occurred evaluating project ':react-native-tts'. > Could not find method jcenter() for arguments [] on repository container of type org.gradle.api.internal.artifacts.dsl.DefaultRepositoryHandler.
+- Mở file bị lỗi: node_modules/react-native-tts/android/build.gradle trong project
+- Thay jcenter() bằng mavenCentral() (Tìm tất cả dòng có chữ jcenter() đổi thành mavenCentral(). Nếu một block đã có sẵn mavenCentral() rồi thì chỉ cần xóa dòng jcenter() thừa.)
+
 ## 6. Chạy app
 
 ```bash
