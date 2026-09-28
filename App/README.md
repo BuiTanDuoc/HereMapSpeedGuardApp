@@ -43,9 +43,12 @@ với iOS nhớ chạy lại `pod install`.
 - iOS: mở `ios/HereSpeedGuard/Info.plist`, thêm nội dung trong
   `ios-Info-plist-additions.xml`.
 
-`react-native-tts` (Android) cần thêm queue TTS engine mặc định của máy — không cần
-cấu hình thêm, nhưng máy ảo (emulator) thường KHÔNG có sẵn giọng đọc, nên test giọng
-nói trên máy thật hoặc cài Google Text-to-Speech trên emulator.
+**Giọng nói (Android)**: ngoài `<uses-permission>`, phải thêm khối `<queries>` (có trong
+`android-AndroidManifest-additions.xml`) — Android 11+ nếu thiếu sẽ không thấy TTS engine.
+Trên điện thoại cần có bộ đọc **Google Text-to-Speech** (CH Play) kèm dữ liệu giọng
+**Tiếng Việt** (Cài đặt > Hệ thống > Ngôn ngữ & nhập liệu > Đầu ra chuyển văn bản thành
+giọng nói > Google > Cài đặt dữ liệu giọng nói). Nếu không dùng được giọng nói, app hiện
+banner cảnh báo ở cuối màn hình. Emulator thường không có giọng đọc, nên test trên máy thật.
 
 ## 4. Cấu hình HERE API Key
 

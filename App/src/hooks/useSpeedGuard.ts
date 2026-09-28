@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import { GeoError } from 'react-native-geolocation-service';
 import {
   SPEED_CHECK_THRESHOLD_KMH,
@@ -14,7 +15,14 @@ import { ensureLocationPermission } from '../services/PermissionService';
 import { startWatchingLocation, stopWatchingLocation } from '../services/LocationService';
 import { startMockLocation, stopMockLocation } from '../services/MockLocationService';
 import { fetchSpeedLimit } from '../services/SpeedLimitService';
-import { initVoiceAlert, speakOverspeedWarning } from '../services/VoiceAlertService';
+import {
+  initVoiceAlert,
+  speakOverspeedWarning,
+  getVoiceStatus,
+  subscribeVoiceStatus,
+  retryVoiceInitIfUnavailable,
+  VoiceStatus,
+} from '../services/VoiceAlertService';
 import { GpsData } from '../types';
 
 export interface SpeedGuardState {
@@ -23,6 +31,7 @@ export interface SpeedGuardState {
   isOverLimit: boolean;
   permissionDenied: boolean;
   errorMessage: string | null;
+  voiceStatus: VoiceStatus;
 }
 
 export function useSpeedGuard(): SpeedGuardState {
@@ -30,6 +39,19 @@ export function useSpeedGuard(): SpeedGuardState {
   const [speedLimitKmh, setSpeedLimitKmh] = useState<number | null>(null);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>(getVoiceStatus());
+
+  // Theo dõi trạng thái TTS; khi quay lại app (vd. vừa cài xong TTS engine) thì thử khởi tạo lại.
+  useEffect(() => {
+    const unsubscribe = subscribeVoiceStatus(setVoiceStatus);
+    const appStateSub = AppState.addEventListener('change', state => {
+      if (state === 'active') retryVoiceInitIfUnavailable();
+    });
+    return () => {
+      unsubscribe();
+      appStateSub.remove();
+    };
+  }, []);
 
   // Tốc độ (km/h) tại lần gọi API gần nhất — dùng để tính độ lệch ±5km/h
   const lastCheckedSpeedRef = useRef<number | null>(null);
@@ -199,5 +221,5 @@ export function useSpeedGuard(): SpeedGuardState {
   const isOverLimit =
     gps !== null && speedLimitKmh !== null && gps.speedKmh > speedLimitKmh;
 
-  return { gps, speedLimitKmh, isOverLimit, permissionDenied, errorMessage };
+  return { gps, speedLimitKmh, isOverLimit, permissionDenied, errorMessage, voiceStatus };
 }

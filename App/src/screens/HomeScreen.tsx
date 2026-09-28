@@ -5,7 +5,8 @@ import SpeedInfoOverlay from '../components/SpeedInfoOverlay';
 import { useSpeedGuard } from '../hooks/useSpeedGuard';
 
 export default function HomeScreen() {
-  const { gps, speedLimitKmh, isOverLimit, permissionDenied, errorMessage } = useSpeedGuard();
+  const { gps, speedLimitKmh, isOverLimit, permissionDenied, errorMessage, voiceStatus } =
+    useSpeedGuard();
 
   if (permissionDenied) {
     return (
@@ -26,11 +27,18 @@ export default function HomeScreen() {
         heading={gps?.heading ?? null}
       />
       <SpeedInfoOverlay gps={gps} speedLimitKmh={speedLimitKmh} isOverLimit={isOverLimit} />
-      {errorMessage && (
-        <View style={styles.errorBanner}>
-          <Text style={styles.errorBannerText}>{errorMessage}</Text>
-        </View>
-      )}
+      <View style={styles.bottomBanners} pointerEvents="none">
+        {voiceStatus.message && voiceStatus.state !== 'initializing' && (
+          <View style={styles.voiceBanner}>
+            <Text style={styles.voiceBannerText}>🔇 {voiceStatus.message}</Text>
+          </View>
+        )}
+        {errorMessage && (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorBannerText}>{errorMessage}</Text>
+          </View>
+        )}
+      </View>
     </View>
   );
 }
@@ -45,11 +53,20 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   errorText: { color: '#ffffff', textAlign: 'center', fontSize: 15 },
-  errorBanner: {
+  bottomBanners: {
     position: 'absolute',
     bottom: 24,
     left: 16,
     right: 16,
+  },
+  voiceBanner: {
+    backgroundColor: '#7a4b00ee',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 8,
+  },
+  voiceBannerText: { color: '#ffffff', fontSize: 12 },
+  errorBanner: {
     backgroundColor: '#0f1117dd',
     borderRadius: 8,
     padding: 10,
