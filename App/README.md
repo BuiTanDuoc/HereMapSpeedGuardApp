@@ -67,6 +67,16 @@ tra cứu tốc độ cho phép).
    (chữ + giọng nói) + chạy nền (foreground service).
 4. Bấm **■ Kết thúc**: dừng dẫn đường, **tắt cảnh báo**, tắt chạy nền, xoá tuyến.
 
+**Đọc giọng nói chỉ dẫn rẽ** (chỉ khi đang `navigating`, tự tắt khi "Kết thúc"):
+- Vừa "Khởi hành": đọc câu đầu tiên của tuyến (vd. "Đi về hướng Bắc").
+- Trước mỗi chỗ rẽ: nhắc **xa** ("Sau 500 mét, rẽ trái vào...", 400-1000m tuỳ tốc độ) rồi nhắc **gần**
+  ("Rẽ trái vào...", 80-250m tuỳ tốc độ) — mỗi lần chỉ đọc 1 lần cho 1 chỗ rẽ.
+- Đến nơi: đọc "Bạn đã đến nơi." (1 lần).
+- Lệch tuyến: đọc "Bạn đã đi lệch tuyến, đang tính lại đường." trước khi gọi API tính lại.
+- Cảnh báo quá tốc độ và chỉ dẫn rẽ dùng chung 1 bộ đọc (TTS): bên nào đang đọc thì bên kia
+  chờ, không cắt lời nhau; lượt bị bỏ lỡ sẽ tự thử lại ở lần cập nhật GPS kế tiếp (≤1s sau).
+- Bật/tắt và tinh chỉnh ngưỡng nhắc xa/gần ở `VOICE_GUIDANCE_ENABLED`, `GUIDANCE_*` trong `AppConfig.ts`.
+
 Trước khi bấm "Khởi hành" và sau khi "Kết thúc", app chỉ hiện vị trí/tốc độ — **không** cảnh báo.
 
 **Không gọi API theo từng điểm GPS**: tốc độ giới hạn đã nằm sẵn trong dữ liệu tuyến (`RoutePlan.segments`),
@@ -121,6 +131,7 @@ npm run ios
 - `src/services/RouteTracker.ts`: so khớp GPS với tuyến, tra tốc độ giới hạn, phát hiện lệch tuyến/đến nơi — không gọi mạng.
 - `src/utils/flexPolyline.ts`: giải mã HERE Flexible Polyline.
 - `src/hooks/useNavigation.ts`: máy trạng thái `idle → planning → navigating`; chỉ ở `navigating` mới cảnh báo tốc độ.
+- `src/services/GuidanceAnnouncer.ts`: quyết định KHI NÀO đọc chỉ dẫn rẽ (nhắc xa/gần/đến nơi), thuần logic, không đụng TTS.
 - `src/components/SpeedInfoOverlay.tsx`: hiển thị tốc độ/toạ độ/hướng + banner đỏ
   "QUÁ TỐC ĐỘ CHO PHÉP" khi vượt.
 - `src/services/VoiceAlertService.ts`: đọc cảnh báo bằng `react-native-tts`

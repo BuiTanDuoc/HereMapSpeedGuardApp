@@ -86,7 +86,7 @@ export const LOCATION_OPTIONS = {
  * ⚠️ Nhớ đặt ENABLE_MOCK_LOCATION_FALLBACK = false trước khi build bản thật cho
  * người dùng, tránh app "giả vờ" có GPS khi máy thật không lấy được vị trí.
  */
-export const ENABLE_MOCK_LOCATION_FALLBACK = true;
+export const ENABLE_MOCK_LOCATION_FALLBACK = false;
 
 /** Thời gian (ms) chờ GPS thật trước khi chuyển sang giả lập. */
 export const MOCK_LOCATION_TIMEOUT_MS = 6000;
@@ -102,3 +102,20 @@ export const MOCK_LOCATION_INTERVAL_MS = 5000;
 
 /** Khoảng thời gian (ms) giữa mỗi điểm GPS giả lập khi chạy dọc tuyến (sau "Khởi hành"). */
 export const MOCK_ROUTE_SIM_INTERVAL_MS = 1000;
+
+/* ------------------------------------------------------------------ */
+/* Đọc giọng nói chỉ dẫn rẽ                                            */
+/* ------------------------------------------------------------------ */
+
+/** Bật/tắt đọc chỉ dẫn rẽ bằng giọng nói (cảnh báo quá tốc độ không bị ảnh hưởng). */
+export const VOICE_GUIDANCE_ENABLED = true;
+
+/** Nhắc lần 1 ("Sau 500 mét, rẽ trái...") khi còn cách chỗ rẽ khoảng tốc độ × số giây này, trong khoảng min–max (mét). */
+export const GUIDANCE_FAR_SECONDS = 30;
+export const GUIDANCE_FAR_MIN_M = 400;
+export const GUIDANCE_FAR_MAX_M = 1000;
+
+/** Nhắc lần 2 ("Rẽ trái vào ...") khi sắp tới chỗ rẽ: tốc độ × số giây này, trong khoảng min–max (mét). */
+export const GUIDANCE_NEAR_SECONDS = 10;
+export const GUIDANCE_NEAR_MIN_M = 80;
+export const GUIDANCE_NEAR_MAX_M = 250;

@@ -126,6 +126,48 @@ export function retryVoiceInitIfUnavailable(): void {
 }
 
 /**
+ * Hai "kênh" dùng chung 1 bộ đọc: cảnh báo quá tốc độ và chỉ dẫn rẽ. Để không cắt lời nhau:
+ *  - Đang đọc cảnh báo tốc độ → chỉ dẫn rẽ chờ (trả false, lần cập nhật GPS sau sẽ thử lại).
+ *  - Đang đọc chỉ dẫn rẽ → cảnh báo tốc độ chờ (không tính vào giãn cách 8s, sẽ đọc ngay sau đó).
+ *  - Chỉ dẫn rẽ mới được phép thay chỉ dẫn rẽ cũ đang đọc dở (vd. "gần rẽ" thay "còn 500m").
+ * Thời gian đọc được ước lượng theo độ dài câu (không phụ thuộc sự kiện của engine TTS).
+ */
+type Channel = 'overspeed' | 'guidance';
+let busyChannel: Channel | null = null;
+let busyUntil = 0;
+
+const SPEECH_BASE_MS = 1500;
+const SPEECH_MS_PER_CHAR = 90;
+
+function isBusy(channel: Channel, now: number): boolean {
+  return busyChannel === channel && now < busyUntil;
+}
+
+function speakNow(text: string, channel: Channel, now: number): void {
+  busyChannel = channel;
+  busyUntil = now + SPEECH_BASE_MS + text.length * SPEECH_MS_PER_CHAR;
+
+  // ⚠️ Tts.speak() là hàm ĐỒNG BỘ, trả về id (string | number) của câu nói — KHÔNG
+  // phải Promise. Không được gọi .then/.catch lên giá trị này (sẽ ném TypeError
+  // "catch is not a function" ngay lập tức). Tts.stop() thì NGƯỢC LẠI, có trả về
+  // Promise<boolean> nên dùng .catch được bình thường.
+  try {
+    Tts.stop().catch(() => {});
+    Tts.speak(text, {
+      iosVoiceId: '',
+      rate: 0.5,
+      androidParams: {
+        KEY_PARAM_PAN: 0,
+        KEY_PARAM_VOLUME: 1,
+        KEY_PARAM_STREAM: 'STREAM_MUSIC',
+      },
+    });
+  } catch (err) {
+    console.warn('[VoiceAlertService] Lỗi khi đọc:', err);
+  }
+}
+
+/**
  * Đọc cảnh báo vượt tốc độ (giới hạn tần suất). Nếu TTS chưa sẵn sàng thì bỏ qua êm.
  */
 export function speakOverspeedWarning(currentKmh: number, limitKmh: number): void {
@@ -133,6 +175,7 @@ export function speakOverspeedWarning(currentKmh: number, limitKmh: number): voi
 
   const now = Date.now();
   if (now - lastSpokenAt < MIN_GAP_BETWEEN_WARNINGS_MS) return;
+  if (isBusy('guidance', now)) return; // chờ đọc xong chỉ dẫn rẽ, chưa tính là đã cảnh báo
   lastSpokenAt = now;
 
   const current = Math.round(currentKmh);
@@ -142,23 +185,33 @@ export function speakOverspeedWarning(currentKmh: number, limitKmh: number): voi
       ? `Warning, you are over the speed limit. Current speed ${current} kilometers per hour. Limit ${limit}.`
       : `Cảnh báo, bạn đang chạy quá tốc độ cho phép. Tốc độ hiện tại ${current} ki lô mét trên giờ. Tốc độ tối đa ${limit} ki lô mét trên giờ.`;
 
-  Tts.stop().catch(() => {});
-  Tts.speak(text, {
-    iosVoiceId: '',
-    rate: 0.5,
-    androidParams: {
-      KEY_PARAM_PAN: 0,
-      KEY_PARAM_VOLUME: 1,
-      KEY_PARAM_STREAM: 'STREAM_MUSIC',
-    },
-  }).catch(err => {
-    console.warn('[VoiceAlertService] Lỗi khi đọc cảnh báo:', err);
-  });
+  speakNow(text, 'overspeed', now);
 }
 
-/** Ngắt giọng đang đọc và reset bộ đếm giãn cách — gọi khi kết thúc chuyến đi. */
+/** Ngôn ngữ giọng đọc hiện tại (để dựng câu chỉ dẫn đúng ngôn ngữ). */
+export function getVoiceLanguage(): 'vi-VN' | 'en-US' {
+  return status.language ?? 'vi-VN';
+}
+
+/**
+ * Đọc chỉ dẫn rẽ. Trả về true nếu ĐÃ đọc (hoặc đưa vào bộ đọc), false nếu chưa đọc được
+ * (TTS chưa sẵn sàng / đang đọc cảnh báo tốc độ) — bên gọi nên thử lại ở lần cập nhật sau.
+ */
+export function speakGuidance(text: string): boolean {
+  if (status.state !== 'ready' || text.length === 0) return false;
+
+  const now = Date.now();
+  if (isBusy('overspeed', now)) return false;
+
+  speakNow(text, 'guidance', now);
+  return true;
+}
+
+/** Ngắt giọng đang đọc và reset bộ đếm — gọi khi kết thúc chuyến đi. */
 export function stopVoiceAlert(): void {
   lastSpokenAt = 0;
+  busyChannel = null;
+  busyUntil = 0;
   if (status.state !== 'ready') return;
   Tts.stop().catch(() => {});
 }

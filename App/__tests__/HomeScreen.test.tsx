@@ -29,6 +29,8 @@ jest.mock('../src/services/BackgroundService', () => ({
 jest.mock('../src/services/VoiceAlertService', () => ({
   initVoiceAlert: jest.fn().mockResolvedValue(undefined),
   speakOverspeedWarning: jest.fn(),
+  speakGuidance: jest.fn().mockReturnValue(true),
+  getVoiceLanguage: () => 'vi-VN',
   stopVoiceAlert: jest.fn(),
   getVoiceStatus: () => ({ state: 'ready', language: 'vi-VN' }),
   subscribeVoiceStatus: () => () => {},

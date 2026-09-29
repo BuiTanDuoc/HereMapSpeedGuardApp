@@ -19,7 +19,7 @@ export interface RouteMatch {
   remainingMeters: number;
   /** Tốc độ giới hạn (km/h) của đoạn đường hiện tại. null nếu không có dữ liệu hoặc đang lệch tuyến. */
   speedLimitKmh: number | null;
-  nextInstruction: { text: string; distanceM: number } | null;
+  nextInstruction: { pointIndex: number; text: string; distanceM: number } | null;
   arrived: boolean;
 }
 
@@ -110,6 +110,7 @@ export class RouteTracker {
     const next = instructions.find(ins => ins.pointIndex > segmentIndex);
     if (!next) return null;
     return {
+      pointIndex: next.pointIndex,
       text: next.text,
       distanceM: Math.max(0, cumulativeMeters[next.pointIndex] - traveledMeters),
     };

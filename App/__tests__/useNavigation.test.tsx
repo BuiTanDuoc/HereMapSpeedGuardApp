@@ -28,6 +28,8 @@ jest.mock('../src/services/BackgroundService', () => ({
 jest.mock('../src/services/VoiceAlertService', () => ({
   initVoiceAlert: jest.fn().mockResolvedValue(undefined),
   speakOverspeedWarning: jest.fn(),
+  speakGuidance: jest.fn().mockReturnValue(true),
+  getVoiceLanguage: () => 'vi-VN',
   stopVoiceAlert: jest.fn(),
   getVoiceStatus: () => ({ state: 'ready', language: 'vi-VN' }),
   subscribeVoiceStatus: () => () => {},
@@ -40,7 +42,7 @@ jest.mock('../src/services/RoutingService', () => ({
 
 import { useNavigation, NavigationState } from '../src/hooks/useNavigation';
 import { fetchRoute } from '../src/services/RoutingService';
-import { speakOverspeedWarning } from '../src/services/VoiceAlertService';
+import { speakOverspeedWarning, speakGuidance } from '../src/services/VoiceAlertService';
 import { startBackgroundTracking, stopBackgroundTracking } from '../src/services/BackgroundService';
 
 // Tuyến thẳng lên Bắc: 0-10 → 50km/h, 10-20 → 30km/h, 20-29 → không có dữ liệu
@@ -58,7 +60,10 @@ function makeRoute(): RoutePlan {
       { startIndex: 10, endIndex: 20, speedLimitKmh: 30 },
       { startIndex: 20, endIndex: 29, speedLimitKmh: null },
     ],
-    instructions: [{ pointIndex: 10, text: 'Rẽ trái' }],
+    instructions: [
+      { pointIndex: 0, text: 'Đi về hướng Bắc.' },
+      { pointIndex: 10, text: 'Rẽ trái' },
+    ],
   };
 }
 
@@ -170,6 +175,34 @@ describe('useNavigation — cảnh báo chỉ hoạt động giữa "Khởi hàn
 
     await act(async () => { emitFix(fix(6, 30)); });
     expect(api.speedLimitKmh).toBe(25);
+
+    await act(async () => { await api.endTrip(); renderer!.unmount(); });
+  });
+
+  it('đọc chỉ dẫn rẽ khi đang navigating; không đọc khi idle/planning; không cắt lời cảnh báo tốc độ', async () => {
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+    await act(async () => { renderer = ReactTestRenderer.create(<Harness />); });
+    await flush();
+
+    await act(async () => { emitFix(fix(1, 10)); });
+    expect(speakGuidance).not.toHaveBeenCalled(); // idle
+
+    await act(async () => { await api.setDestination({ latitude: 10.8059, longitude: 106.7009, label: 'Đích' }); });
+    await act(async () => { emitFix(fix(1, 10)); });
+    expect(speakGuidance).not.toHaveBeenCalled(); // planning (chưa khởi hành)
+
+    await act(async () => { await api.startTrip(); });
+    await act(async () => { emitFix(fix(0, 10)); }); // vài mét đầu → đọc câu xuất phát
+    expect(speakGuidance).toHaveBeenCalledWith('Đi về hướng Bắc.');
+
+    // Bộ đọc đang bận (đọc cảnh báo tốc độ) → chỉ dẫn rẽ phải chờ, không được gọi đè lên
+    (speakGuidance as jest.Mock).mockReturnValueOnce(false);
+    await act(async () => { emitFix(fix(9, 60)); }); // gần chỗ rẽ tại điểm 10, tốc độ cao để chắc chắn vào ngưỡng "near"
+    const callsWhenBusy = (speakGuidance as jest.Mock).mock.calls.length;
+
+    // Lần cập nhật sau, bộ đọc rảnh → phải thử lại và đọc được (không bị mất lượt)
+    await act(async () => { emitFix(fix(9, 60)); });
+    expect((speakGuidance as jest.Mock).mock.calls.length).toBeGreaterThan(callsWhenBusy);
 
     await act(async () => { await api.endTrip(); renderer!.unmount(); });
   });

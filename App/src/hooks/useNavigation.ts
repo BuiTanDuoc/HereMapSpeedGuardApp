@@ -26,12 +26,16 @@ import { RouteMatch, RouteTracker } from '../services/RouteTracker';
 import {
   initVoiceAlert,
   speakOverspeedWarning,
+  speakGuidance,
+  getVoiceLanguage,
   stopVoiceAlert,
   getVoiceStatus,
   subscribeVoiceStatus,
   retryVoiceInitIfUnavailable,
   VoiceStatus,
 } from '../services/VoiceAlertService';
+import { GuidanceAnnouncer, guidanceSpeech, rerouteSpeech } from '../services/GuidanceAnnouncer';
+import { VOICE_GUIDANCE_ENABLED } from '../config/AppConfig';
 import { GpsData, LatLng, RoutePlan, TripPhase } from '../types';
 
 export interface Destination extends LatLng {
@@ -92,6 +96,7 @@ export function useNavigation(): NavigationState {
   const destinationRef = useRef<Destination | null>(null);
   const routeRef = useRef<RoutePlan | null>(null);
   const trackerRef = useRef<RouteTracker | null>(null);
+  const announcerRef = useRef<GuidanceAnnouncer | null>(null);
   const routeRequestIdRef = useRef(0);
   const offRouteCountRef = useRef(0);
   const lastRerouteAtRef = useRef(0);
@@ -126,11 +131,13 @@ export function useNavigation(): NavigationState {
       reroutingRef.current = true;
       lastRerouteAtRef.current = Date.now();
       setRerouting(true);
+      if (VOICE_GUIDANCE_ENABLED) speakGuidance(rerouteSpeech(getVoiceLanguage()));
       try {
         const next = await fetchRoute(from, dest);
         // Người dùng có thể đã bấm "Kết thúc" trong lúc chờ.
         if (!mountedRef.current || phaseRef.current !== 'navigating') return;
         trackerRef.current = new RouteTracker(next, DEBUG_FORCE_SPEED_LIMIT_KMH);
+        announcerRef.current = new GuidanceAnnouncer(next, { announceStart: false });
         offRouteCountRef.current = 0;
         applyRoute(next);
         setErrorMessage(null);
@@ -165,6 +172,17 @@ export function useNavigation(): NavigationState {
       const limit = result.speedLimitKmh;
       if (limit !== null && data.speedKmh > limit + OVERSPEED_TOLERANCE_KMH) {
         speakOverspeedWarning(data.speedKmh, limit);
+      }
+
+      // Chỉ dẫn rẽ bằng giọng nói. Nếu bộ đọc đang bận (đọc cảnh báo tốc độ) thì bỏ qua lượt
+      // này — chưa đánh dấu đã đọc, nên lần cập nhật GPS kế tiếp (≤1s sau) sẽ thử lại.
+      if (VOICE_GUIDANCE_ENABLED) {
+        const announcer = announcerRef.current;
+        const candidate = announcer?.next(result, data.speedKmh) ?? null;
+        if (candidate) {
+          const spoken = speakGuidance(guidanceSpeech(candidate, getVoiceLanguage()));
+          if (spoken) announcer!.markSpoken(candidate.key);
+        }
       }
 
       // Lệch tuyến liên tiếp vài điểm mới tính lại đường (tránh GPS nhảy 1-2 điểm).
@@ -320,6 +338,7 @@ export function useNavigation(): NavigationState {
 
     // Toàn bộ tốc độ giới hạn dọc tuyến đã có trong `plan.segments` (lấy 1 lần lúc tính đường).
     trackerRef.current = new RouteTracker(plan, DEBUG_FORCE_SPEED_LIMIT_KMH);
+    announcerRef.current = new GuidanceAnnouncer(plan, { announceStart: true });
     offRouteCountRef.current = 0;
     lastRerouteAtRef.current = 0;
     setMatch(null);
@@ -339,6 +358,7 @@ export function useNavigation(): NavigationState {
 
     applyPhase('idle'); // đặt trước để mọi điểm GPS đến sau đó không còn cảnh báo
     trackerRef.current = null;
+    announcerRef.current = null;
     destinationRef.current = null;
     routeRequestIdRef.current += 1;
     offRouteCountRef.current = 0;
