@@ -32,6 +32,4 @@ google-services.json
 
 # Android Profiling
 *.hprof
-Claude/
-App_/
-*.zip
+
