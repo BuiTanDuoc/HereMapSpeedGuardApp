@@ -30,6 +30,29 @@ export async function ensureLocationPermission(): Promise<boolean> {
 }
 
 /**
+ * Kiểm tra (không xin lại) quyền vị trí hiện có đang thực sự ĐƯỢC CẤP hay không.
+ *
+ * Dùng để gác trước khi khởi động foreground service kiểu "location": Android bắt buộc
+ * app phải đang giữ quyền ACCESS_FINE_LOCATION/ACCESS_COARSE_LOCATION tại đúng thời điểm
+ * gọi startForeground(), nếu không sẽ ném SecurityException và GIẾT TIẾN TRÌNH NGAY LẬP
+ * TỨC (crash native, không qua JS nên không hiện log). Vì `ENABLE_MOCK_LOCATION_FALLBACK`
+ * có thể khiến app vẫn chạy được bằng GPS giả lập dù quyền thật đã bị từ chối, phải kiểm
+ * tra lại đúng lúc chuẩn bị bật chạy nền — không dựa vào kết quả xin quyền lúc mở app.
+ */
+export async function hasLocationPermission(): Promise<boolean> {
+  const permission = Platform.select({
+    android: PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION,
+    ios: PERMISSIONS.IOS.LOCATION_WHEN_IN_USE,
+  });
+  if (!permission) return false;
+  try {
+    return (await check(permission)) === RESULTS.GRANTED;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Android 13+ cần xin quyền hiện thông báo để notification của chế độ chạy nền hiển
  * thị. Bị từ chối thì service vẫn chạy nhưng không thấy notification.
  */

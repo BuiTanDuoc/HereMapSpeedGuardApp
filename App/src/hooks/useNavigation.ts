@@ -9,7 +9,11 @@ import {
   OVERSPEED_TOLERANCE_KMH,
   REROUTE_MIN_INTERVAL_MS,
 } from '../config/AppConfig';
-import { ensureLocationPermission, ensureNotificationPermission } from '../services/PermissionService';
+import {
+  ensureLocationPermission,
+  ensureNotificationPermission,
+  hasLocationPermission,
+} from '../services/PermissionService';
 import {
   startBackgroundTracking,
   stopBackgroundTracking,
@@ -349,8 +353,18 @@ export function useNavigation(): NavigationState {
     restartMock();
 
     // Bật chạy nền (foreground service) — phải gọi khi app đang ở foreground.
+    // Android bắt buộc phải ĐANG GIỮ quyền vị trí tại đúng lúc bật foreground service kiểu
+    // "location", nếu không hệ điều hành sẽ giết tiến trình ngay (crash native, không qua
+    // JS). Kiểm tra lại ngay lúc này (không dựa vào lúc mở app) — ENABLE_MOCK_LOCATION_FALLBACK
+    // có thể khiến app vẫn chạy bình thường bằng GPS giả lập dù quyền thật đã bị từ chối.
     await ensureNotificationPermission();
-    if ((phaseRef.current as TripPhase) === 'navigating') await startBackgroundTracking();
+    if ((phaseRef.current as TripPhase) === 'navigating') {
+      if (await hasLocationPermission()) {
+        await startBackgroundTracking();
+      } else {
+        console.warn('[useNavigation] Bỏ qua bật chạy nền: chưa có quyền vị trí thật.');
+      }
+    }
   }, [applyPhase, restartMock]);
 
   const endTrip = useCallback(async () => {
